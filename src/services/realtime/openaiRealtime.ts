@@ -5,7 +5,7 @@ dotenv.config();
 
 type RealtimeOptions = {
   onOpen: () => void;
-  onMessage: (data: string) => void;
+  onMessage: (data: any) => void;
   onClose: () => void;
   onError: (err: any) => void;
 };
@@ -13,7 +13,6 @@ type RealtimeOptions = {
 export function createOpenAIRealtimeSocket(
   options: RealtimeOptions
 ): WebSocket {
-  console.log("process.env.OPENAI_API_KEY", process.env.OPENAI_API_KEY);
   const url =
     "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
   const ws = new WebSocket(url, {
@@ -25,12 +24,17 @@ export function createOpenAIRealtimeSocket(
 
   ws.on("open", () => {
     const payload = {
-      type: "start",
-      data: {
-        format: "opus",
-        sample_rate: 16000,
-        encoding: "audio/ogg",
-        language: "pt",
+      type: "session.update",
+      session: {
+        turn_detection: { type: "server_vad", silence_duration_ms: 1000 },
+        input_audio_format: "pcm16",
+        output_audio_format: "pcm16",
+        voice: "alloy",
+        instructions: process.env.SYSTEM_MESSAGE,
+        temperature: 0.8,
+        input_audio_transcription: {
+          model: "whisper-1",
+        },
       },
     };
 
