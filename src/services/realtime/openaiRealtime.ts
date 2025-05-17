@@ -1,35 +1,29 @@
-import WebSocket from "ws";
 import dotenv from "dotenv";
+import WebSocket, { RawData } from "ws";
 import { injectParamsInScript } from "../../utils/injectPramasInScript";
+import { RealtimeOptions, ScriptParams } from "./openaiRealtime.types";
 
 dotenv.config();
 
-type RealtimeOptions = {
-  onOpen: () => void;
-  onMessage: (data: any) => void;
-  onClose: () => void;
-  onError: (err: any) => void;
-};
-
-type ScriptParams = {
-  jobDescription?: string;
-  candidateName?: string;
-  companyName?: string;
-};
-
 export function createOpenAIRealtimeSocket(
-  scriptParams: ScriptParams,
-  options: RealtimeOptions
+  options: RealtimeOptions,
+  scriptParams?: ScriptParams
 ): WebSocket {
-  const url =
-    "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
-
-  const ws = new WebSocket(url, {
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "OpenAI-Beta": "realtime=v1",
-    },
+  const scriptWithParams = injectParamsInScript(process.env.AI_SCRIPT ?? "", {
+    candidateName: scriptParams?.candidateName ?? "",
+    companyName: scriptParams?.companyName ?? "",
+    jobDescription: scriptParams?.jobDescription ?? "",
   });
+
+  const ws = new WebSocket(
+    "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "OpenAI-Beta": "realtime=v1",
+      },
+    }
+  );
 
   ws.on("open", () => {
     const payload = {
@@ -39,17 +33,9 @@ export function createOpenAIRealtimeSocket(
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
         voice: "alloy",
-        instructions: injectParamsInScript(process.env.AI_SCRIPT ?? "", {
-          candidateName: scriptParams.candidateName ?? "",
-          companyName: scriptParams.companyName ?? "",
-          jobDescription: scriptParams.jobDescription ?? "",
-        }),
+        instructions: scriptWithParams,
         temperature: 0.6,
         modalities: ["text", "audio"],
-        input_audio_transcription: {
-          model: "gpt-4o-transcribe",
-          language: "pt",
-        },
       },
     };
 
@@ -57,12 +43,18 @@ export function createOpenAIRealtimeSocket(
     options.onOpen();
   });
 
-  ws.on("message", (data) => {
+  ws.on("message", (data: RawData) => {
     options.onMessage(data.toString());
+
+    // if (isBinary) {
+    //   options.onAudio(data as Buffer);
+    // } else {
+    //   options.onMessage(data.toString());
+    // }
   });
 
-  ws.on("error", options.onError);
   ws.on("close", options.onClose);
+  ws.on("error", options.onError);
 
   return ws;
 }

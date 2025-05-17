@@ -101,6 +101,7 @@ import fastifyWs from "@fastify/websocket";
 import WebSocket from "ws";
 import { v4 as uuid } from "uuid";
 import { createOpenAIRealtimeSocket } from "./services/realtime/openaiRealtime";
+import { ScriptParams } from "./services/realtime/openaiRealtime.types";
 
 const fastify = Fastify();
 fastify.register(fastifyWs);
@@ -111,20 +112,15 @@ type ClientInfo = {
 };
 
 fastify.register(async function (fastify) {
-  fastify.get("/ws", { websocket: true }, (clientSocket, req: any) => {
+  fastify.get("/ws", { websocket: true }, (clientSocket, req) => {
     const clientId = uuid();
     const clientInfo: ClientInfo = { id: clientId };
+    const scriptParams = req.query as ScriptParams;
+    let canSendAudio = false;
 
     console.log(`🟢 Client connected: ${clientId}`);
 
-    let canSendAudio = false;
-
     const aiSocket = createOpenAIRealtimeSocket(
-      {
-        candidateName: req.query.candidateName,
-        jobDescription: req.query.jobDescription,
-        companyName: req.query.companyName,
-      },
       {
         onOpen() {
           console.log("🔁 Connected to OpenAI Realtime API");
@@ -157,13 +153,15 @@ fastify.register(async function (fastify) {
             clientSocket.close();
           }
         },
-      }
+      },
+      scriptParams
     );
 
     clientInfo.aiSocket = aiSocket;
 
-    clientSocket.on("message", (data) => {
-      if (aiSocket.readyState === WebSocket.OPEN && canSendAudio) {
+    clientSocket.on("message", (data, isBinary) => {
+      if (aiSocket.readyState === WebSocket.OPEN) {
+        const response: { transcript: string } = JSON.parse(data.toString());
         const buffer = Buffer.isBuffer(data)
           ? data
           : Buffer.from(data as ArrayBuffer);
@@ -172,8 +170,18 @@ fastify.register(async function (fastify) {
 
         aiSocket.send(
           JSON.stringify({
-            type: "input_audio_buffer.append",
-            audio: base64Audio,
+            type: "conversation.item.create",
+            item: {
+              type: "message",
+              role: "user",
+              content: [{ type: "input_text", text: response.transcript }],
+            },
+          })
+        );
+
+        aiSocket.send(
+          JSON.stringify({
+            type: "response.create",
           })
         );
       }
