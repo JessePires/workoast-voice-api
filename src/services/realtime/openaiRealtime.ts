@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import dotenv from "dotenv";
+import { injectParamsInScript } from "../../utils/injectPramasInScript";
 
 dotenv.config();
 
@@ -10,11 +11,19 @@ type RealtimeOptions = {
   onError: (err: any) => void;
 };
 
+type ScriptParams = {
+  jobDescription?: string;
+  candidateName?: string;
+  companyName?: string;
+};
+
 export function createOpenAIRealtimeSocket(
+  scriptParams: ScriptParams,
   options: RealtimeOptions
 ): WebSocket {
   const url =
     "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
+
   const ws = new WebSocket(url, {
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -30,10 +39,16 @@ export function createOpenAIRealtimeSocket(
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
         voice: "alloy",
-        instructions: process.env.SYSTEM_MESSAGE,
-        temperature: 0.8,
+        instructions: injectParamsInScript(process.env.AI_SCRIPT ?? "", {
+          candidateName: scriptParams.candidateName ?? "",
+          companyName: scriptParams.companyName ?? "",
+          jobDescription: scriptParams.jobDescription ?? "",
+        }),
+        temperature: 0.6,
+        modalities: ["text", "audio"],
         input_audio_transcription: {
-          model: "whisper-1",
+          model: "gpt-4o-transcribe",
+          language: "pt",
         },
       },
     };

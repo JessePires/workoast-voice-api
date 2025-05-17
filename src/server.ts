@@ -111,7 +111,7 @@ type ClientInfo = {
 };
 
 fastify.register(async function (fastify) {
-  fastify.get("/ws", { websocket: true }, (clientSocket) => {
+  fastify.get("/ws", { websocket: true }, (clientSocket, req: any) => {
     const clientId = uuid();
     const clientInfo: ClientInfo = { id: clientId };
 
@@ -119,48 +119,51 @@ fastify.register(async function (fastify) {
 
     let canSendAudio = false;
 
-    const aiSocket = createOpenAIRealtimeSocket({
-      onOpen() {
-        console.log("🔁 Connected to OpenAI Realtime API");
+    const aiSocket = createOpenAIRealtimeSocket(
+      {
+        candidateName: req.query.candidateName,
+        jobDescription: req.query.jobDescription,
+        companyName: req.query.companyName,
       },
+      {
+        onOpen() {
+          console.log("🔁 Connected to OpenAI Realtime API");
+        },
 
-      onMessage(message) {
-        const parsed = JSON.parse(message);
+        onMessage(message) {
+          const parsed = JSON.parse(message);
 
-        if (parsed.type === "session.updated") {
-          // Pode começar a enviar chunks
-          canSendAudio = true;
-        }
+          if (parsed.type === "session.updated") {
+            canSendAudio = true;
+          }
 
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          // console.log("message", message);
-          clientSocket.send(message);
-        }
-      },
+          if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.send(message);
+          }
+        },
 
-      onError(error) {
-        console.error("❌ Error on AI Socket:", error);
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.send(
-            JSON.stringify({ type: "error", error: "AI socket error" })
-          );
-        }
-      },
+        onError(error) {
+          console.error("❌ Error on AI Socket:", error);
+          if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.send(
+              JSON.stringify({ type: "error", error: "AI socket error" })
+            );
+          }
+        },
 
-      onClose() {
-        console.log("🔁 Closed connection to OpenAI Realtime API");
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.close();
-        }
-      },
-    });
+        onClose() {
+          console.log("🔁 Closed connection to OpenAI Realtime API");
+          if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.close();
+          }
+        },
+      }
+    );
 
     clientInfo.aiSocket = aiSocket;
 
-    clientSocket.on("message", (data, isBinary) => {
+    clientSocket.on("message", (data) => {
       if (aiSocket.readyState === WebSocket.OPEN && canSendAudio) {
-        console.log("data", data);
-
         const buffer = Buffer.isBuffer(data)
           ? data
           : Buffer.from(data as ArrayBuffer);
