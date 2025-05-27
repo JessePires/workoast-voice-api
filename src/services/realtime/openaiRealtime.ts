@@ -48,7 +48,9 @@ export function createOpenAIRealtimeSocket(
         modalities: ["text", "audio"],
         input_audio_transcription: {
           model: "gpt-4o-transcribe",
-          language: "pt",
+          language: "en",
+          prompt:
+            "Você deve transcrever corretamente termos em inglês também mesmo que o idioma utilizado seja outro.",
         },
       },
     };
