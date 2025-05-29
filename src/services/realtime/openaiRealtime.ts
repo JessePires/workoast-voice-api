@@ -15,6 +15,7 @@ type ScriptParams = {
   jobDescription?: string;
   candidateName?: string;
   companyName?: string;
+  language?: string;
 };
 
 export function createOpenAIRealtimeSocket(
@@ -39,16 +40,24 @@ export function createOpenAIRealtimeSocket(
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
         voice: "alloy",
+
         instructions: injectParamsInScript(process.env.AI_SCRIPT ?? "", {
           candidateName: scriptParams.candidateName ?? "",
           companyName: scriptParams.companyName ?? "",
           jobDescription: scriptParams.jobDescription ?? "",
+          language: scriptParams.language ?? "pt",
         }),
         temperature: 0.6,
         modalities: ["text", "audio"],
         input_audio_transcription: {
           model: "gpt-4o-transcribe",
-          language: "pt",
+          language: scriptParams.language ?? "pt",
+          prompt: `
+            Você deve transcrever com precisão o que for falado em ${scriptParams.language}, com pontuação correta, acentos e separação de frases.
+            Não tente fazer aproximações da palavra dita com palvras existentes.
+            Se houver palavras ou nomes em inglês, mantenha-os como estão, sem traduzir.
+            Ignore ruídos ou hesitações. Atente-se para transcrever corretamente o nome da empresa que é ${scriptParams.companyName}
+          `,
         },
       },
     };

@@ -124,6 +124,7 @@ fastify.register(async function (fastify) {
         candidateName: req.query.candidateName,
         jobDescription: req.query.jobDescription,
         companyName: req.query.companyName,
+        language: req.query.language,
       },
       {
         onOpen() {
